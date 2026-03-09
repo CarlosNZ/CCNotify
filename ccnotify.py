@@ -11,12 +11,20 @@ import sqlite3
 import subprocess
 import logging
 import urllib.request
+import configparser
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime
 
-# ntfy.sh push notifications (install ntfy app on iPhone, subscribe to this topic)
-NTFY_TOPIC = "ccnotify-bcb462dd6f5b"
-NTFY_IDLE_SECONDS = 60  # only push to phone if idle longer than this
+# Load config from ccnotify.ini next to this script
+_config = configparser.ConfigParser()
+_config.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), "ccnotify.ini"))
+
+# ntfy.sh push notifications — configure in ccnotify.ini:
+#   [ntfy]
+#   topic = my-secret-topic
+#   idle_seconds = 60
+NTFY_TOPIC = _config.get("ntfy", "topic", fallback=None)
+NTFY_IDLE_SECONDS = _config.getint("ntfy", "idle_seconds", fallback=60)
 
 
 class ClaudePromptTracker:
