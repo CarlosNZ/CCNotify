@@ -1,55 +1,27 @@
 ![Notification Screenshot](alert.jpg)
 
+Fork of [https://github.com/dazuiba/CCNotify](https://github.com/dazuiba/CCNotify), with the following changes:
+  - works with "Prompt" notifications (requests to edit, or run commands)
+  - optional notifications to mobile device (via [ntfy](https://ntfy.sh/))
+  - installer script to simplify setup
+
 # CCNotify
 
 CCNotify provides desktop notifications for Claude Code, alerting you when Claude needs your input or completes tasks.
-## Important Notes
-Starting from claude-code v1.0.95 (2025-08-31), any invalid settings in `~/.claude/settings.json` will disable hooks. See [Why not working](#why-not-working) for solutions.
 
-## Features
+## Installation
 
-- 🔔 **Get notified** when Claude requires your input or completes a task.
-- 🔗 **Click to jump back** when notifications are clicked, automatically taking you to the corresponding project in VS Code.
-- ⏱️ **Task Duration**: Displays started time, and how long the task took to complete
+1. Install [`terminal-notifier`](https://github.com/julienXX/terminal-notifier):  
+  `brew install terminal-notifier` (or see [here](https://github.com/dazuiba/CCNotify?tab=readme-ov-file#2-install-terminal-notifier) for alternative installation methods)
+2. From within this repo root, run `./install.sh`
+   - This will create a symlink of `ccnotify.py` in `~/.claude/ccnotify/` (Symlink ensures subsequent updates get automatically reflected in running version)
+   - Prompts to provide a NTFY topic ID (if you want mobile notifications). This value can be any unique string. 
+   - Copies `.ini` file to `~/.claude/ccnotify/` with your designated NTFY ID included
 
-**Note**: Currently compatible with macOS only.
+3. Then update your `~/.claude/settings.json` file with the following `hooks` block:
 
-
-## Installation Guide
-
-### 1. Install CCNotify
-```bash
-# Create the directory if it doesn't exist
-mkdir -p ~/.claude/ccnotify
-
-# soft link ccnotify.py to the directory
-ln -f ccnotify.py ~/.claude/ccnotify/
-
-chmod a+x ~/.claude/ccnotify/ccnotify.py
-
-# run this script, should print: ok
-~/.claude/ccnotify/ccnotify.py
-
-ok
-
-```
-### 2. Install terminal-notifier
-ccnotify uses `terminal-notifier` for macOS notifications. Install it using Homebrew:
-
-```bash
-brew install terminal-notifier
-```
-
-For alternative installation methods and more information, visit: https://github.com/julienXX/terminal-notifier
-
-### 3. Configure Claude Hooks
-Add the following hooks to your Claude configuration to enable ccnotify:
-
- ~/.claude/settings.json 
- 
 ```json
-
-  "hooks": {
+"hooks": {
   "UserPromptSubmit": [
     {
       "hooks": [
@@ -79,60 +51,18 @@ Add the following hooks to your Claude configuration to enable ccnotify:
         }
       ]
     }
+  ],
+  "PermissionRequest": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "~/.claude/ccnotify/ccnotify.py PermissionRequest"
+        }
+      ]
+    }
   ]
 }
-
 ```
 
-## Try It Out
-
-To verify the notification system works, start a new Claude Code session and run:
-```
-after 1 second, echo 'hello'
-```
-You should see a macOS notification appear.
-
-## Why not working
-1. Ensure hooks configuration is active. Here's an example where other configurations prevent hooks from working:
-
-`claude -p --model haiku -d hooks --verbose "hi"`
-
-Expected output:
-
-```
-[DEBUG] Found 1 hook commands to execute
-[DEBUG] Executing hook command: ~/.claude/ccnotify/ccnotify.py UserPromptSubmit with timeout 60000ms
-[DEBUG] Hook command completed with status 0: ~/.claude/ccnotify/ccnotify.py UserPromptSubmit
-```
-
-Actual output:
-
-```
-[DEBUG] Invalid settings in userSettings source - key: permissions.allow.0, error:.....
-[DEBUG] Found 0 hook commands to execute
-```
-Reason: In September 2025, claude-code strengthened validation rules for settings.json. Any invalid configuration will disable hooks.
-You need to modify the relevant configurations in `~/.claude/settings.json` until the `Invalid settings` error stops appearing.
-
-
-
-## How It Works
-
-ccnotify tracks Claude sessions and provides notifications at key moments:
-
-- **When you submit a prompt**: Records the start time and project context
-- **When Claude completes**: Calculates duration and sends a completion notification
-- **When Claude waits for input**: Immediately alerts you that input is needed
-
-All activity is logged to `~/.claude/ccnotify/ccnotify.log` and session data is stored in `~/.claude/ccnotify/ccnotify.db` locally. No data is uploaded or shared externally.
-
-
-## Uninstall
-
-Edit `~/.claude/settings.json` and remove all hook commands related to `ccnotify`.
-
-Remove all files with a single command:
-```bash
-rm -rf ~/.claude/ccnotify
-```
-
+See [original repo](https://github.com/dazuiba/CCNotify) for further info

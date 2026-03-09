@@ -2,6 +2,11 @@
 #
 # CCNotify installer
 # Run from the CCNotify repo root: ./install.sh
+#
+# - Creates ~/.claude/ccnotify/ if it doesn't exist
+# - Symlinks ccnotify.py into that directory
+# - Optionally prompts for an ntfy topic ID and generates ccnotify.ini
+# - Prints the hooks JSON to add to ~/.claude/settings.json
 
 set -e
 
