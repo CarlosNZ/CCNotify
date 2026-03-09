@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code Notify
+Claude Code Notify (with ntfy + idle detection)
 https://github.com/dazuiba/CCNotify
 """
 
