@@ -5,9 +5,11 @@ Fork of [https://github.com/dazuiba/CCNotify](https://github.com/dazuiba/CCNotif
   - optional notifications to mobile device (via [ntfy](https://ntfy.sh/))
   - installer script to simplify setup
 
+Should work with Claude Code command line or [VSCode extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code)
+
 # CCNotify
 
-CCNotify provides desktop notifications for Claude Code, alerting you when Claude needs your input or completes tasks.
+**CCNotify** provides desktop notifications for **Claude Code**, alerting you when Claude needs your input or completes tasks.
 
 ## Installation
 
