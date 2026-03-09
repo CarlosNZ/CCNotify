@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code Notify
+Claude Code Notify (with ntfy + idle detection)
 https://github.com/dazuiba/CCNotify
 """
 
@@ -10,8 +10,21 @@ import json
 import sqlite3
 import subprocess
 import logging
+import urllib.request
+import configparser
 from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime
+
+# Load config from ccnotify.ini next to this script
+_config = configparser.ConfigParser()
+_config.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), "ccnotify.ini"))
+
+# ntfy.sh push notifications — configure in ccnotify.ini:
+#   [ntfy]
+#   topic = my-secret-topic
+#   idle_seconds = 60
+NTFY_TOPIC = _config.get("ntfy", "topic", fallback=None)
+NTFY_IDLE_SECONDS = _config.getint("ntfy", "idle_seconds", fallback=60)
 
 
 class ClaudePromptTracker:
@@ -151,6 +164,21 @@ class ClaudePromptTracker:
                     f"Task completed for session {session_id}, job#{seq}, duration: {duration}"
                 )
 
+    def handle_permission_request(self, data):
+        """Handle PermissionRequest event - send notification when Claude needs permission"""
+        session_id = data.get("session_id")
+        tool_name = data.get("tool_name", "a tool")
+        cwd = data.get("cwd", "")
+
+        logging.info(f"[PERMISSION_REQUEST] session={session_id}, tool={tool_name}")
+
+        self.send_notification(
+            title=os.path.basename(cwd) if cwd else "Claude Task",
+            subtitle=f"Permission needed: {tool_name}",
+            cwd=cwd,
+        )
+        logging.info(f"Permission notification sent for session {session_id}: {tool_name}")
+
     def handle_notification(self, data):
         """Handle Notification event - check for various notification types and send notifications"""
         session_id = data.get("session_id")
@@ -271,7 +299,7 @@ class ClaudePromptTracker:
             return "Unknown"
 
     def send_notification(self, title, subtitle, cwd=None):
-        """Send macOS notification using terminal-notifier"""
+        """Send macOS notification using terminal-notifier and push via ntfy"""
         from datetime import datetime
 
         current_time = datetime.now().strftime("%B %d, %Y at %H:%M")
@@ -297,6 +325,37 @@ class ClaudePromptTracker:
         except Exception as e:
             logging.error(f"Error sending notification: {e}")
 
+        if NTFY_TOPIC and self._is_user_idle():
+            try:
+                req = urllib.request.Request(
+                    f"https://ntfy.sh/{NTFY_TOPIC}",
+                    data=subtitle.encode(),
+                    headers={"Title": title},
+                )
+                urllib.request.urlopen(req, timeout=5)
+                logging.info(f"ntfy push sent: {title} - {subtitle}")
+            except Exception as e:
+                logging.error(f"ntfy push failed: {e}")
+
+    def _is_user_idle(self):
+        """Check if the user has been idle longer than NTFY_IDLE_SECONDS"""
+        try:
+            result = subprocess.run(
+                ["ioreg", "-c", "IOHIDSystem", "-d", "4"],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                if "HIDIdleTime" in line:
+                    # Value is in nanoseconds
+                    ns = int(line.split("=")[-1].strip())
+                    idle_secs = ns / 1_000_000_000
+                    logging.info(f"User idle time: {idle_secs:.0f}s (threshold: {NTFY_IDLE_SECONDS}s)")
+                    return idle_secs >= NTFY_IDLE_SECONDS
+        except Exception as e:
+            logging.error(f"Failed to check idle time: {e}")
+        # If we can't determine idle time, send the notification to be safe
+        return True
+
 
 def validate_input_data(data, expected_event_name):
     """Validate input data matches design specification"""
@@ -304,6 +363,7 @@ def validate_input_data(data, expected_event_name):
         "UserPromptSubmit": ["session_id", "prompt", "cwd", "hook_event_name"],
         "Stop": ["session_id", "hook_event_name"],
         "Notification": ["session_id", "message", "hook_event_name"],
+        "PermissionRequest": ["session_id", "hook_event_name"],
     }
 
     if expected_event_name not in required_fields:
@@ -338,7 +398,7 @@ def main():
             return
 
         expected_event_name = sys.argv[1]
-        valid_events = ["UserPromptSubmit", "Stop", "Notification"]
+        valid_events = ["UserPromptSubmit", "Stop", "Notification", "PermissionRequest"]
 
         if expected_event_name not in valid_events:
             logging.error(f"Invalid hook type: {expected_event_name}")
@@ -364,6 +424,8 @@ def main():
             tracker.handle_stop(data)
         elif expected_event_name == "Notification":
             tracker.handle_notification(data)
+        elif expected_event_name == "PermissionRequest":
+            tracker.handle_permission_request(data)
 
     except json.JSONDecodeError as e:
         logging.error(f"JSON decode error: {e}")
