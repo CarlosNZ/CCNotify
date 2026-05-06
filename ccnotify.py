@@ -26,6 +26,19 @@ _config.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), "ccnotify.
 NTFY_TOPIC = _config.get("ntfy", "topic", fallback=None)
 NTFY_IDLE_SECONDS = _config.getint("ntfy", "idle_seconds", fallback=60)
 
+# Suppress notifications when one of these macOS apps is frontmost — configure in ccnotify.ini:
+#   [focus]
+#   apps = Code,Warp,Terminal
+#   match_window_title = false
+FOCUS_APPS = [
+    a.strip()
+    for a in _config.get("focus", "apps", fallback="").split(",")
+    if a.strip()
+]
+FOCUS_MATCH_WINDOW_TITLE = _config.getboolean(
+    "focus", "match_window_title", fallback=False
+)
+
 
 class ClaudePromptTracker:
     def __init__(self):
@@ -302,6 +315,10 @@ class ClaudePromptTracker:
         """Send macOS notification using terminal-notifier and push via ntfy"""
         from datetime import datetime
 
+        if self._is_claude_focused(cwd):
+            logging.info(f"Notification suppressed (Claude focused): {title} - {subtitle}")
+            return
+
         current_time = datetime.now().strftime("%B %d, %Y at %H:%M")
 
         try:
@@ -336,6 +353,69 @@ class ClaudePromptTracker:
                 logging.info(f"ntfy push sent: {title} - {subtitle}")
             except Exception as e:
                 logging.error(f"ntfy push failed: {e}")
+
+    def _is_claude_focused(self, cwd=None):
+        """Return True if the frontmost app is one the user considers 'Claude focused'.
+
+        When match_window_title is enabled, also requires the frontmost window's
+        title to contain basename(cwd) — so a different project window of the
+        same app does not suppress the notification.
+        """
+        if not FOCUS_APPS:
+            return False
+        try:
+            # Use AXMain to find the active window (Electron apps like VSCode
+            # don't expose window names through `window 1` or `front window`).
+            # Falls back to scanning all windows for the first non-empty title.
+            script = (
+                'tell application "System Events"\n'
+                '  set frontApp to first process whose frontmost is true\n'
+                '  set appName to name of frontApp\n'
+                '  set winName to ""\n'
+                '  try\n'
+                '    set winName to value of attribute "AXTitle" of (first window of frontApp whose value of attribute "AXMain" is true)\n'
+                '    if winName is missing value then set winName to ""\n'
+                '  end try\n'
+                '  if winName is "" then\n'
+                '    try\n'
+                '      repeat with w in windows of frontApp\n'
+                '        set t to ""\n'
+                '        try\n'
+                '          set t to value of attribute "AXTitle" of w\n'
+                '          if t is missing value then set t to ""\n'
+                '        end try\n'
+                '        if t is not "" then\n'
+                '          set winName to t\n'
+                '          exit repeat\n'
+                '        end if\n'
+                '      end repeat\n'
+                '    end try\n'
+                '  end if\n'
+                '  return appName & "\t" & winName\n'
+                'end tell'
+            )
+            result = subprocess.run(
+                ["osascript", "-e", script],
+                capture_output=True, text=True, timeout=2,
+            )
+            if result.returncode != 0:
+                logging.error(f"osascript failed: {result.stderr.strip()}")
+                return False
+            app_name, _, win_title = result.stdout.strip().partition("\t")
+            project = os.path.basename(cwd.rstrip("/")) if cwd else ""
+            logging.info(
+                f"Focus check: app={app_name!r}, title={win_title!r}, "
+                f"project={project!r}, focus_apps={FOCUS_APPS}, "
+                f"match_window_title={FOCUS_MATCH_WINDOW_TITLE}"
+            )
+            if app_name not in FOCUS_APPS:
+                return False
+            if FOCUS_MATCH_WINDOW_TITLE and project and project not in win_title:
+                return False
+            return True
+        except Exception as e:
+            logging.error(f"Failed to check focused app: {e}")
+            return False
 
     def _is_user_idle(self):
         """Check if the user has been idle longer than NTFY_IDLE_SECONDS"""

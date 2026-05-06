@@ -1,0 +1,23 @@
+[ntfy]
+# Unique string used as your private push channel. Subscribe to the same
+# topic in the ntfy app on your phone to receive mobile notifications.
+# If commented out or empty, mobile push is disabled.
+topic = your-topic-id-goes-here
+
+# Only push to ntfy if the user has been idle (no keyboard/mouse activity)
+# for at least this many seconds. Prevents your phone from buzzing while
+# you're actively at the Mac.
+idle_seconds = 60
+
+[focus]
+# Comma-separated list of macOS app names. If one of these is the frontmost
+# app when a hook fires, notifications (both local popup and ntfy push) are
+# suppressed — the assumption being you're already looking at Claude.
+apps = Code,Warp,Terminal
+
+# When true, suppress only if the frontmost window's title contains the
+# basename of the project's working directory. This avoids suppressing
+# notifications when you're focused on a different window of the same app
+# (e.g. another VSCode project). Window-title formats vary, so leave this
+# off if it produces false negatives.
+match_window_title = false
