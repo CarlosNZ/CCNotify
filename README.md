@@ -109,4 +109,15 @@ When the macOS app currently in the foreground is one you use to run Claude Code
 
 When you `git pull` and `ccnotify.ini.example` gains new sections (e.g. for a new feature), they won't appear in your `ccnotify.ini` automatically — diff the two files in the repo and copy any new sections over before re-running `./install.sh`.
 
+## Uninstalling
+
+From the repo root, run `./uninstall.sh`. It reverses everything `install.sh` set up:
+
+- removes the `ccnotify` hooks from `~/.claude/settings.json` (the original is backed up to `settings.json.bak` first; any other hooks and settings are left intact)
+- removes the install directory `~/.claude/ccnotify/` (the symlinked `ccnotify.py`, the copied `ccnotify.ini`, and the runtime `ccnotify.db` / `ccnotify.log` files)
+
+You'll be asked to confirm before anything is removed — pass `-y` (or `--yes`) to skip the prompt. Restart your Claude Code session afterwards so it re-reads `settings.json`.
+
+Your repo (the source `ccnotify.py` and your personal `ccnotify.ini`) is left untouched, as are `terminal-notifier` and the ntfy app — uninstall those yourself if you no longer want them (e.g. `brew uninstall terminal-notifier`).
+
 See [original repo](https://github.com/dazuiba/CCNotify) for further info
